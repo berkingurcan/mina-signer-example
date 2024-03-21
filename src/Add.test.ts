@@ -1,67 +1,100 @@
-import { Add } from './Add';
-import { Field, Mina, PrivateKey, PublicKey, AccountUpdate } from 'o1js';
+import { jest, describe, expect, it } from "@jest/globals";
+import fs from "fs/promises";
+import {
+  AccountUpdate,
+  PrivateKey,
+  Mina,
+  PublicKey,
+  UInt64,
+  Types,
+} from "o1js";
 
-/*
- * This file specifies how to test the `Add` example smart contract. It is safe to delete this file and replace
- * with your own tests.
- *
- * See https://docs.minaprotocol.com/zkapps for more info.
- */
+jest.setTimeout(1000 * 60 * 60 * 1); // 1 hour
+const transactionFee = 150_000_000;
+let senderPrivateKey: PrivateKey | undefined = undefined;
+let senderPublicKey: PublicKey | undefined = undefined;
 
-let proofsEnabled = false;
+beforeAll(async () => {
+  const Local = Mina.LocalBlockchain({ proofsEnabled: true });
+  Mina.setActiveInstance(Local);
+  const { privateKey } = Local.testAccounts[0];
+  senderPrivateKey = privateKey;
+  senderPublicKey = senderPrivateKey.toPublicKey();
+  expect(senderPublicKey).not.toBeUndefined();
+  expect(senderPrivateKey).not.toBeUndefined();
 
-describe('Add', () => {
-  let deployerAccount: PublicKey,
-    deployerKey: PrivateKey,
-    senderAccount: PublicKey,
-    senderKey: PrivateKey,
-    zkAppAddress: PublicKey,
-    zkAppPrivateKey: PrivateKey,
-    zkApp: Add;
+  await fs.mkdir('./json', { recursive: true });
+});
 
-  beforeAll(async () => {
-    if (proofsEnabled) await Add.compile();
+describe("Sign, export, and import transaction", () => {
+  it("should sign and export transaction", async () => {
+    if (senderPublicKey === undefined || senderPrivateKey === undefined) return;
+    const sender: PublicKey = senderPublicKey;
+    const transaction = await Mina.transaction(
+      { sender, fee: transactionFee },
+      () => {
+        AccountUpdate.fundNewAccount(sender);
+        const senderUpdate = AccountUpdate.create(sender);
+        senderUpdate.requireSignature();
+        senderUpdate.send({
+          to: PrivateKey.random().toPublicKey(),
+          amount: UInt64.from(1_000_000_000n),
+        });
+      }
+    );
+    // Sign BEFORE exporting
+    transaction.sign([senderPrivateKey]);
+    await fs.writeFile("./json/tx-signed.json", transaction.toJSON());
   });
 
-  beforeEach(() => {
-    const Local = Mina.LocalBlockchain({ proofsEnabled });
-    Mina.setActiveInstance(Local);
-    ({ privateKey: deployerKey, publicKey: deployerAccount } =
-      Local.testAccounts[0]);
-    ({ privateKey: senderKey, publicKey: senderAccount } =
-      Local.testAccounts[1]);
-    zkAppPrivateKey = PrivateKey.random();
-    zkAppAddress = zkAppPrivateKey.toPublicKey();
-    zkApp = new Add(zkAppAddress);
+  it("should send a signed transaction", async () => {
+    // @ts-ignore
+    const transaction: Mina.Transaction = Mina.Transaction.fromJSON(
+      JSON.parse(
+        await fs.readFile("./json/tx-signed.json", "utf8")
+      ) as Types.Json.ZkappCommand
+    ) as Mina.Transaction;
+    console.log("transaction signed before export:", transaction.toPretty());
+    const tx = await transaction.send();
+
+    // @ts-ignore
+    expect(tx.isSuccess).toBe(true);
+  });
+});
+
+describe("Export, import and sign transaction", () => {
+  it("should export unsigned transaction", async () => {
+    if (senderPublicKey === undefined || senderPrivateKey === undefined) return;
+    const sender: PublicKey = senderPublicKey;
+    const transaction = await Mina.transaction(
+      { sender, fee: transactionFee },
+      () => {
+        AccountUpdate.fundNewAccount(sender);
+        const senderUpdate = AccountUpdate.create(sender);
+        senderUpdate.requireSignature();
+        senderUpdate.send({
+          to: PrivateKey.random().toPublicKey(),
+          amount: UInt64.from(1_000_000_000n),
+        });
+      }
+    );
+    await fs.writeFile("./json/tx-unsigned.json", transaction.toJSON());
   });
 
-  async function localDeploy() {
-    const txn = await Mina.transaction(deployerAccount, () => {
-      AccountUpdate.fundNewAccount(deployerAccount);
-      zkApp.deploy();
-    });
-    await txn.prove();
-    // this tx needs .sign(), because `deploy()` adds an account update that requires signature authorization
-    await txn.sign([deployerKey, zkAppPrivateKey]).send();
-  }
-
-  it('generates and deploys the `Add` smart contract', async () => {
-    await localDeploy();
-    const num = zkApp.num.get();
-    expect(num).toEqual(Field(1));
-  });
-
-  it('correctly updates the num state on the `Add` smart contract', async () => {
-    await localDeploy();
-
-    // update transaction
-    const txn = await Mina.transaction(senderAccount, () => {
-      zkApp.update();
-    });
-    await txn.prove();
-    await txn.sign([senderKey]).send();
-
-    const updatedNum = zkApp.num.get();
-    expect(updatedNum).toEqual(Field(3));
+  it("should import, sign and sendtransaction", async () => {
+    // @ts-ignore
+    const transaction: Mina.Transaction = Mina.Transaction.fromJSON(
+      JSON.parse(
+        await fs.readFile("./json/tx-unsigned.json", "utf8")
+      ) as Types.Json.ZkappCommand
+    ) as Mina.Transaction;
+    expect(senderPrivateKey).not.toBeUndefined();
+    if (senderPrivateKey === undefined) return;
+    // Sign AFTER importing
+    transaction.sign([senderPrivateKey]);
+    console.log("transaction signed after import:", transaction.toPretty());
+    const tx = await transaction.send();
+    // @ts-ignore
+    expect(tx.isSuccess).toBe(true);
   });
 });
