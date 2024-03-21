@@ -104,19 +104,17 @@ describe("Export, import and sign transaction", () => {
       },
     }
 
-    console.log(signBody)
-
     expect(senderPrivateKey).not.toBeUndefined();
     if (senderPrivateKey === undefined) return;
     // Sign with mina signer after importing unsigned tx. 
     // NOTE: There is a char length issue with memo.
     const signedTx = client?.signTransaction(signBody, senderPrivateKey.toBase58())
-    console.log(signedTx)
 
     // @ts-ignore
     const transaction: Mina.Transaction = Mina.Transaction.fromJSON(
-      signedTx.data
+      signedTx?.data.zkappCommand
     ) as Mina.Transaction;
+
     const tx = await transaction.send();
     // @ts-ignore
     expect(tx.isSuccess).toBe(true);
