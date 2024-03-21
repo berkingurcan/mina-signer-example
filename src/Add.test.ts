@@ -1,5 +1,6 @@
 import { jest, describe, expect, it } from "@jest/globals";
 import Client from 'mina-signer';
+import BigNumber from "bignumber.js";
 import fs from "fs/promises";
 import {
   AccountUpdate,
@@ -85,17 +86,35 @@ describe("Export, import and sign transaction", () => {
   });
 
   it("should import, sign and sendtransaction", async () => {
-    // @ts-ignore
-    const transaction: Mina.Transaction = Mina.Transaction.fromJSON(
-      JSON.parse(
-        await fs.readFile("./json/tx-unsigned.json", "utf8")
-      ) as Types.Json.ZkappCommand
-    ) as Mina.Transaction;
+    let signBody = {}
+    const unsignedTx = JSON.parse(
+      await fs.readFile("./json/tx-unsigned.json", "utf8")
+    )
+
+    let decimal = new BigNumber(10).pow(9)
+    let sendFee = new BigNumber(unsignedTx.feePayer.body.fee).multipliedBy(decimal).toNumber()
+
+    signBody = {
+      zkappCommand: unsignedTx,
+      feePayer: {
+          feePayer: unsignedTx.feePayer.body.publicKey,
+          fee: sendFee,
+          nonce: unsignedTx.feePayer.body.nonce,
+          memo: unsignedTx.memo||""
+      },
+    }
+
     expect(senderPrivateKey).not.toBeUndefined();
     if (senderPrivateKey === undefined) return;
-    // Sign AFTER importing
-    transaction.sign([senderPrivateKey]);
-    console.log("transaction signed after import:", transaction.toPretty());
+
+    // Sign with mina signer Sign zkapp command AFTER importing
+    const signedTx = client?.signTransaction(signBody, senderPrivateKey.toString())
+    console.log(signedTx)
+
+    // @ts-ignore
+    const transaction: Mina.Transaction = Mina.Transaction.fromJSON(
+      signedTx
+    ) as Mina.Transaction;
     const tx = await transaction.send();
     // @ts-ignore
     expect(tx.isSuccess).toBe(true);

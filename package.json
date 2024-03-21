@@ -39,6 +39,7 @@
     "o1js": "0.17.*"
   },
   "dependencies": {
+    "bignumber.js": "9.0.1",
     "mina-signer": "^3.0.5"
   }
 }
