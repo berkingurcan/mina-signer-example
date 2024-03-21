@@ -1,4 +1,5 @@
 import { jest, describe, expect, it } from "@jest/globals";
+import Client from 'mina-signer';
 import fs from "fs/promises";
 import {
   AccountUpdate,
@@ -13,10 +14,12 @@ jest.setTimeout(1000 * 60 * 60 * 1); // 1 hour
 const transactionFee = 150_000_000;
 let senderPrivateKey: PrivateKey | undefined = undefined;
 let senderPublicKey: PublicKey | undefined = undefined;
+let client: Client | undefined;
 
 beforeAll(async () => {
   const Local = Mina.LocalBlockchain({ proofsEnabled: true });
   Mina.setActiveInstance(Local);
+  client = new Client({ network: Local.getNetworkId() }); 
   const { privateKey } = Local.testAccounts[0];
   senderPrivateKey = privateKey;
   senderPublicKey = senderPrivateKey.toPublicKey();
