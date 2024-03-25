@@ -58,10 +58,8 @@ describe("Sign, export, and import transaction", () => {
       ) as Types.Json.ZkappCommand
     ) as Mina.Transaction;
 
-    console.log(transaction.toPretty())
     const tx = await transaction.send();
-    // @ts-ignore
-    expect(tx.isSuccess).toBe(true);
+    expect(tx.status).toBe('pending');
   });
 });
 
@@ -113,8 +111,6 @@ describe("Export, import and sign transaction", () => {
     ) as Mina.Transaction;
 
     const tx = await transaction.send();
-    console.log(tx)
-    // @ts-ignore
-    expect(tx.isSuccess).toBe(true);
+    expect(tx.status).toBe('pending');
   });
 });
