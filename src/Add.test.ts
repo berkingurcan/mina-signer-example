@@ -1,6 +1,5 @@
 import { jest, describe, expect, it } from "@jest/globals";
 import Client from 'mina-signer';
-import BigNumber from "bignumber.js";
 import fs from "fs/promises";
 import {
   AccountUpdate,
@@ -61,7 +60,6 @@ describe("Sign, export, and import transaction", () => {
 
     console.log(transaction.toPretty())
     const tx = await transaction.send();
-
     // @ts-ignore
     expect(tx.isSuccess).toBe(true);
   });
@@ -92,14 +90,11 @@ describe("Export, import and sign transaction", () => {
       await fs.readFile("./json/tx-unsigned.json", "utf8")
     )
 
-    let decimal = new BigNumber(10).pow(9)
-    let sendFee = new BigNumber(unsignedTx.feePayer.body.fee).multipliedBy(decimal).toNumber()
-
     signBody = {
       zkappCommand: unsignedTx,
       feePayer: {
           feePayer: unsignedTx.feePayer.body.publicKey,
-          fee: sendFee,
+          fee: unsignedTx.feePayer.body.fee,
           nonce: unsignedTx.feePayer.body.nonce,
           memo: unsignedTx.memo.substring(0, 32)||""
       },
@@ -117,8 +112,8 @@ describe("Export, import and sign transaction", () => {
       signedTx?.data.zkappCommand
     ) as Mina.Transaction;
 
-    console.log("TR",transaction.toPretty())
     const tx = await transaction.send();
+    console.log(tx)
     // @ts-ignore
     expect(tx.isSuccess).toBe(true);
   });
